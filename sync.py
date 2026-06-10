@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from bwsync.config import Config
 from bwsync.log import setup_logging
 from bwsync.session import BwSession
+from bwsync.audit import audit_vaults
 from bwsync.export import export_vault
 from bwsync.wipe import wipe_vault
 from bwsync.restore import restore_vault
@@ -106,6 +107,32 @@ def main() -> None:
             log.info("Backup: %s", backup_path)
             prune_backups(cfg)
 
+        log.info("Auditing destination vault…")
+        audit = audit_vaults(export, dst)
+        log.info(
+            "Source: %d item(s) | Destination: %d item(s) before sync.",
+            audit.src_count,
+            audit.dst_count,
+        )
+
+        if audit.has_dst_only:
+            log.warning(
+                "%d item(s) found in Vaultwarden that are not in Bitwarden.com:",
+                len(audit.dst_only),
+            )
+            for name, folder in audit.dst_only:
+                label = f"{name!r} ({folder})" if folder else f"{name!r} (no folder)"
+                log.warning("  • %s", label)
+            if not args.dry_run:
+                notifier.send_dst_only_abort(audit.dst_only)
+                log.error(
+                    "Sync aborted — delete the above item(s) from Vaultwarden manually, "
+                    "then re-run the sync."
+                )
+                sys.exit(1)
+        else:
+            log.info("No destination-only items found.")
+
         if args.dry_run:
             log.info(
                 "Dry run complete. Would wipe destination and restore "
@@ -122,10 +149,13 @@ def main() -> None:
         result = restore_vault(dst, export, cfg)
 
         log.info(
-            "Sync complete — %d item(s), %d/%d attachment(s) restored.",
+            "Sync complete — %d item(s), %d/%d attachment(s) restored. "
+            "Vaultwarden: %d → %d item(s).",
             result.items_restored,
             result.attachments_restored,
             export.attachment_count,
+            audit.dst_count,
+            result.items_restored,
         )
 
         if result.attachment_failures:
@@ -133,7 +163,7 @@ def main() -> None:
             for msg in result.attachment_failures:
                 log.warning("  %s", msg)
 
-        notifier.send_success(result.items_restored, result.attachments_restored)
+        notifier.send_success(result.items_restored, result.attachments_restored, audit.dst_count)
 
     except Exception as exc:
         log.error("Sync failed: %s", exc, exc_info=(cfg.log_level == "DEBUG"))

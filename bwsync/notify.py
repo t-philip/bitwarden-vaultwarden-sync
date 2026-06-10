@@ -23,12 +23,27 @@ class Notifier:
             return
         self._send(f"*bitwarden-vaultwarden-sync failed*\n\n```\n{message}\n```")
 
-    def send_success(self, items: int, attachments: int) -> None:
+    def send_success(self, items: int, attachments: int, dst_before: int) -> None:
         if not self._enabled:
             return
         self._send(
             f"*bitwarden-vaultwarden-sync completed*\n"
-            f"{items} item(s), {attachments} attachment(s) synced."
+            f"{items} item(s), {attachments} attachment(s) synced.\n"
+            f"Vaultwarden: {dst_before} → {items} item(s)."
+        )
+
+    def send_dst_only_abort(self, dst_only: list) -> None:
+        if not self._enabled:
+            return
+        lines = "\n".join(
+            f"  • {name}" + (f" ({folder})" if folder else " (no folder)")
+            for name, folder in dst_only
+        )
+        self._send(
+            f"*bitwarden-vaultwarden-sync aborted*\n\n"
+            f"{len(dst_only)} item(s) found in Vaultwarden that are not in Bitwarden.com.\n"
+            f"Delete them manually from Vaultwarden, then re-run the sync.\n\n"
+            f"```\n{lines}\n```"
         )
 
     def _send(self, text: str) -> None:
