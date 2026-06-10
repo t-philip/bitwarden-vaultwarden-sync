@@ -1,9 +1,11 @@
 import base64
 import hashlib
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 import requests
+import urllib3
 
 if TYPE_CHECKING:
     from .config import Config
@@ -45,12 +47,17 @@ def _wipe_via_cli(session: "BwSession") -> None:
 
 def _wipe_via_api(cfg: "Config") -> None:
     base = cfg.bw_dest_url.rstrip("/")
+    verify = cfg.bw_dest_tls_verify
+
+    if not verify:
+        warnings.filterwarnings("ignore", category=urllib3.exceptions.InsecureRequestWarning)
 
     # Step 1 — get KDF parameters
     r = requests.post(
         f"{base}/api/accounts/prelogin",
         json={"email": cfg.bw_dest_email},
         timeout=15,
+        verify=verify,
     )
     r.raise_for_status()
     prelogin = r.json()
@@ -95,6 +102,7 @@ def _wipe_via_api(cfg: "Config") -> None:
             "deviceIdentifier": "bwvwsync-purge-client",
         },
         timeout=15,
+        verify=verify,
     )
     r.raise_for_status()
     access_token = r.json()["access_token"]
@@ -105,6 +113,7 @@ def _wipe_via_api(cfg: "Config") -> None:
         json={"masterPasswordHash": master_password_hash},
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=30,
+        verify=verify,
     )
     r.raise_for_status()
     log.debug("API purge complete.")

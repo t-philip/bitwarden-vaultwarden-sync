@@ -31,7 +31,8 @@ class Config:
     bw_dest_password: str
 
     # Wipe
-    vw_wipe_method: str  # "cli" or "api"
+    vw_wipe_method: str   # "cli" or "api"
+    bw_dest_tls_verify: bool  # False for self-signed certs
 
     # Backup
     backup_enabled: bool
@@ -69,6 +70,7 @@ class Config:
             bw_dest_password=_require("BW_DEST_PASSWORD"),
 
             vw_wipe_method=wipe_method,
+            bw_dest_tls_verify=_optional("BW_DEST_TLS_VERIFY", "true").lower() not in ("false", "0", "no"),
 
             backup_enabled=backup_enabled,
             backup_dir=Path(_optional("BACKUP_DIR", "/var/backups/bw-sync")),
