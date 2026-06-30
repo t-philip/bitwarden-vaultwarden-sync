@@ -23,15 +23,6 @@ class Notifier:
             return
         self._send(f"*bitwarden-vaultwarden-sync failed*\n\n```\n{message}\n```")
 
-    def send_success(self, items: int, attachments: int, dst_before: int) -> None:
-        if not self._enabled:
-            return
-        self._send(
-            f"*bitwarden-vaultwarden-sync completed*\n"
-            f"{items} item(s), {attachments} attachment(s) synced.\n"
-            f"Vaultwarden: {dst_before} → {items} item(s)."
-        )
-
     def send_dst_only_abort(self, dst_only: list) -> None:
         if not self._enabled:
             return

@@ -163,8 +163,6 @@ def main() -> None:
             for msg in result.attachment_failures:
                 log.warning("  %s", msg)
 
-        notifier.send_success(result.items_restored, result.attachments_restored, audit.dst_count)
-
     except Exception as exc:
         log.error("Sync failed: %s", exc, exc_info=(cfg.log_level == "DEBUG"))
         notifier.send_failure(str(exc))
