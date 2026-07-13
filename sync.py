@@ -71,12 +71,20 @@ def main() -> None:
     tmp = cfg.temp_dir
     tmp.mkdir(parents=True, exist_ok=True)
 
+    # appdata_dir is separate from tmp and persists on disk across runs. It
+    # holds only the bw CLI's own device_id + last-used server URL — logout()
+    # clears any account/vault state from it every run (see BwSession.login).
+    # Wiping it (as it used to live under tmp) reset the CLI's device
+    # identity on every sync, so Bitwarden.com treated each nightly run as a
+    # brand-new device login and emailed a "new device" security alert daily.
+    cfg.appdata_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+
     src = BwSession(
         server_url=cfg.bw_source_url,
         client_id=cfg.bw_source_client_id,
         client_secret=cfg.bw_source_client_secret,
         master_password=cfg.bw_source_password,
-        config_dir=tmp / "src-appdata",
+        config_dir=cfg.appdata_dir / "src-appdata",
         label="source",
     )
     dst = BwSession(
@@ -84,7 +92,7 @@ def main() -> None:
         client_id=cfg.bw_dest_client_id,
         client_secret=cfg.bw_dest_client_secret,
         master_password=cfg.bw_dest_password,
-        config_dir=tmp / "dst-appdata",
+        config_dir=cfg.appdata_dir / "dst-appdata",
         label="destination",
     )
 

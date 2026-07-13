@@ -61,7 +61,18 @@ class BwSession:
     # ------------------------------------------------------------------
 
     def login(self) -> None:
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+        self.config_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(self.config_dir, 0o700)
+
+        # config_dir persists across runs (see sync.py) so the CLI's device_id
+        # stays stable and Bitwarden.com stops flagging every run as a new
+        # device login. That means a prior run that crashed after login but
+        # before logout() could leave this dir in a logged-in state, which
+        # `bw login` refuses to do again — force a clean slate first.
+        try:
+            self._run("logout")
+        except Exception:
+            pass  # not logged in yet, or a stale/invalid session — ignore
 
         # Always set server URL explicitly so isolated config dirs start clean
         canonical = (

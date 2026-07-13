@@ -46,6 +46,7 @@ class Config:
 
     # Runtime
     temp_dir: Path
+    appdata_dir: Path
     log_level: str
 
     @classmethod
@@ -81,6 +82,7 @@ class Config:
             telegram_chat_id=_optional("TELEGRAM_CHAT_ID"),
 
             temp_dir=Path(_optional("TEMP_DIR", "/dev/shm/bw-sync")),
+            appdata_dir=Path(_optional("APPDATA_DIR", "/var/lib/bw-vw-sync")),
             log_level=_optional("LOG_LEVEL", "INFO").upper(),
         )
 

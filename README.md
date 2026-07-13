@@ -28,7 +28,8 @@ attachments — with encrypted backups and optional Telegram failure alerts.
 - Two wipe methods: `cli` (universal) or `api` (fast, single HTTP call)
 - `--dry-run` mode to verify credentials and measure vault size without touching the destination
 - Optional Telegram alert on failure
-- Vault data staged in tmpfs (`/dev/shm`) — never written to persistent storage
+- Vault data (export + backup staging) lives in tmpfs (`/dev/shm`), wiped after every run
+- Stable `bw` CLI device identity persisted on disk — see [Device identity](#device-identity) below
 - No heavy dependencies: only `python-dotenv` and `requests`
 
 ## Requirements
@@ -81,7 +82,8 @@ fill in your values. The full reference is in the example file and in
 | `BACKUP_RETENTION_DAYS` | | `7` | Days to retain old backups |
 | `TELEGRAM_BOT_TOKEN` | | | Telegram bot token (alerts off if blank) |
 | `TELEGRAM_CHAT_ID` | | | Telegram chat ID |
-| `TEMP_DIR` | | `/dev/shm/bw-sync` | Temp directory (use tmpfs) |
+| `TEMP_DIR` | | `/dev/shm/bw-sync` | Temp directory for plaintext export/backup staging (use tmpfs) |
+| `APPDATA_DIR` | | `/var/lib/bw-vw-sync` | Persistent on-disk directory for the `bw` CLI's device identity (see below) |
 | `LOG_LEVEL` | | `INFO` | `DEBUG`, `INFO`, `WARNING` |
 
 ## Wipe methods
@@ -96,6 +98,21 @@ any KDF setting (PBKDF2 or Argon2). The right choice for most users.
 Issues a single `POST /api/ciphers/purge` request. Completes instantly regardless of
 vault size. Requires your Vaultwarden account to use the PBKDF2 KDF (the Vaultwarden
 default). If you have switched to Argon2, use `cli` instead.
+
+## Device identity
+
+Each run authenticates to both vaults via `bw login --apikey` under an isolated
+`BITWARDENCLI_APPDATA_DIR` per vault (`APPDATA_DIR/src-appdata`,
+`APPDATA_DIR/dst-appdata`). That directory is where the `bw` CLI persists its
+device identifier — a random ID that Bitwarden.com uses to recognize a login
+as coming from an already-known device rather than a new one.
+
+`APPDATA_DIR` lives outside `TEMP_DIR` and is **not** wiped between runs, so
+the device ID stays stable and Bitwarden.com stops sending a "new device
+logged in" email on every scheduled sync. `logout()` runs at the end of every
+sync (success or failure) and clears the account/session state from this
+directory, so nothing vault-related persists in it between runs — only the
+CLI's own device ID and last-configured server URL remain.
 
 ## Dry run
 
