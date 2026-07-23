@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from bwsync.config import Config
 from bwsync.log import setup_logging
 from bwsync.session import BwSession
-from bwsync.audit import audit_vaults
+from bwsync.audit import audit_vaults, load_last_synced_keys, save_last_synced_keys
 from bwsync.export import export_vault
 from bwsync.wipe import wipe_vault
 from bwsync.restore import restore_vault
@@ -116,12 +116,28 @@ def main() -> None:
             prune_backups(cfg)
 
         log.info("Auditing destination vault…")
-        audit = audit_vaults(export, dst)
+        # AT-125: last_synced_keys.json records what the last successful sync
+        # actually restored, so a dst-only item that matches it (renamed or
+        # deleted at the true source since then) doesn't force a manual abort —
+        # see audit_vaults()'s docstring for the full reasoning.
+        state_path = cfg.appdata_dir / "last_synced_keys.json"
+        last_synced_keys = load_last_synced_keys(state_path)
+        audit = audit_vaults(export, dst, last_synced_keys=last_synced_keys)
         log.info(
             "Source: %d item(s) | Destination: %d item(s) before sync.",
             audit.src_count,
             audit.dst_count,
         )
+
+        if audit.tolerated_renames:
+            log.info(
+                "%d destination item(s) explained by a rename/deletion at the source "
+                "since the last sync — will be replaced by the wipe, no action needed:",
+                len(audit.tolerated_renames),
+            )
+            for name, folder in audit.tolerated_renames:
+                label = f"{name!r} ({folder})" if folder else f"{name!r} (no folder)"
+                log.info("  • %s", label)
 
         if audit.has_dst_only:
             log.warning(
@@ -155,6 +171,11 @@ def main() -> None:
 
         log.info("Restoring vault…")
         result = restore_vault(dst, export, cfg)
+
+        # AT-125: dst now equals src exactly (that's what the wipe+restore just
+        # did) — persist this run's source keys so the next run's audit can
+        # tell a real rename/deletion apart from a genuine out-of-band orphan.
+        save_last_synced_keys(state_path, audit.src_keys)
 
         log.info(
             "Sync complete — %d item(s), %d/%d attachment(s) restored. "
