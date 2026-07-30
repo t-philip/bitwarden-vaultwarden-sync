@@ -141,6 +141,21 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 [GPL-3.0](LICENSE)
 
+## Reporting issues
+
+Found a bug or want to suggest something?
+**[Open an issue](https://github.com/t-philip/bitwarden-vaultwarden-sync/issues/new/choose)**.
+
+Because this tool handles vault credentials, two things are worth stressing:
+
+- **Issues are public and permanently indexed.** Never paste your `.env`, API
+  keys, master password, or raw `bw` output. Redact server URLs and email
+  addresses if you'd rather they weren't public. Replace secrets in logs with
+  `[REDACTED]` rather than deleting the lines.
+- **Security vulnerabilities do not go in issues.** Use the private channel
+  described in [SECURITY.md](SECURITY.md), which opens an advisory visible only
+  to the maintainer.
+
 ## Author
 
 Built by [T. Philip](https://github.com/t-philip).  

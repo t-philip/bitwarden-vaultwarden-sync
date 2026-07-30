@@ -1,0 +1,20 @@
+name: Question or idea
+description: Setup help or a suggestion
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't include passwords, tokens, API keys, or vault content — this
+        issue will be public. Redacted placeholders are fine.
+
+        **Security vulnerability?** Use the private channel in
+        [SECURITY.md](../blob/main/SECURITY.md) instead of opening an issue.
+
+  - type: textarea
+    id: body
+    attributes:
+      label: What would you like to know?
+    validations:
+      required: true
