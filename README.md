@@ -76,7 +76,8 @@ fill in your values. The full reference is in the example file and in
 | `BW_DEST_CLIENT_SECRET` | Yes | | Destination API key client secret |
 | `BW_DEST_PASSWORD` | Yes | | Destination master password |
 | `VW_WIPE_METHOD` | | `cli` | `cli` or `api` (see below) |
-| `BW_DEST_TLS_VERIFY` | | `true` | Verify the destination's TLS certificate. **Applies only to the `api` wipe method** — `bw` CLI operations are unaffected and need `NODE_EXTRA_CA_CERTS` instead |
+| `BW_DEST_CA_BUNDLE` | | | Path to a CA certificate to trust for the destination. **Preferred** for a self-signed Vaultwarden — keeps verification enabled. Applies to both the `bw` CLI and the `api` wipe method |
+| `BW_DEST_TLS_VERIFY` | | `true` | Set `false` to disable destination certificate verification entirely. Applies to both the `bw` CLI and the `api` wipe method. Use `BW_DEST_CA_BUNDLE` instead where you can |
 | `BACKUP_ENABLED` | | `true` | Enable GPG backup before each sync |
 | `BACKUP_DIR` | | `/var/backups/bw-sync` | Backup output directory |
 | `BACKUP_GPG_PASSPHRASE` | If backup enabled | | Passphrase for GPG encryption |
@@ -140,8 +141,24 @@ covered by tests.
 - Organisation items are not synced (personal vault only)
 - Attachment matching requires unique item names within each folder
 - `api` wipe method requires PBKDF2 KDF on the destination
-- `BW_DEST_TLS_VERIFY` applies only to the `api` wipe method, not to `bw` CLI
-  operations — see [DESIGN_SPEC §10.1](docs/DESIGN_SPEC.md#101-bw_dest_tls_verify-is-undocumented-and-only-half-applied)
+
+## Self-signed destination certificates
+
+If your Vaultwarden uses a certificate that is not in the system trust store, point
+`BW_DEST_CA_BUNDLE` at the CA certificate:
+
+```bash
+BW_DEST_CA_BUNDLE=/etc/ssl/certs/my-internal-ca.pem
+```
+
+This is passed to the `bw` CLI (`NODE_EXTRA_CA_CERTS`) and to the `api` wipe path
+alike, and **keeps certificate verification switched on** — the connection is still
+authenticated, just against your CA rather than a public one. The sync refuses to
+start if the path does not exist, because Node silently ignores an unreadable bundle
+and would otherwise fall back to the system store without telling you.
+
+`BW_DEST_TLS_VERIFY=false` disables verification altogether and is the fallback when
+you have no bundle to hand. It logs a warning on every run.
 
 ## Contributing
 

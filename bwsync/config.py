@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 
 def _require(key: str) -> str:
@@ -32,7 +33,10 @@ class Config:
 
     # Wipe
     vw_wipe_method: str   # "cli" or "api"
-    bw_dest_tls_verify: bool  # False for self-signed certs
+
+    # TLS — applies to BOTH the api wipe path (requests) and every bw CLI call
+    bw_dest_tls_verify: bool          # False disables verification entirely
+    bw_dest_ca_bundle: Optional[Path]  # preferred: trust this CA, keep verification on
 
     # Backup
     backup_enabled: bool
@@ -72,6 +76,7 @@ class Config:
 
             vw_wipe_method=wipe_method,
             bw_dest_tls_verify=_optional("BW_DEST_TLS_VERIFY", "true").lower() not in ("false", "0", "no"),
+            bw_dest_ca_bundle=(Path(ca_bundle) if (ca_bundle := _optional("BW_DEST_CA_BUNDLE")) else None),
 
             backup_enabled=backup_enabled,
             backup_dir=Path(_optional("BACKUP_DIR", "/var/backups/bw-sync")),
@@ -94,3 +99,10 @@ class Config:
             )
         if self.vw_wipe_method == "api" and not self.bw_dest_email:
             raise ValueError("BW_DEST_EMAIL is required when VW_WIPE_METHOD=api")
+        if self.bw_dest_ca_bundle is not None and not self.bw_dest_ca_bundle.is_file():
+            # Fail here rather than letting Node silently ignore an unreadable path
+            # and fall back to the system trust store.
+            raise ValueError(
+                f"BW_DEST_CA_BUNDLE points to a file that does not exist: "
+                f"{self.bw_dest_ca_bundle}"
+            )

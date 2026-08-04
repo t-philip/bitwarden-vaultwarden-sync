@@ -24,6 +24,8 @@ class BwSession:
         master_password: str,
         config_dir: Path,
         label: str = "",
+        ca_bundle: Optional[Path] = None,
+        tls_verify: bool = True,
     ):
         self.server_url = server_url.rstrip("/")
         self.client_id = client_id
@@ -31,6 +33,8 @@ class BwSession:
         self.master_password = master_password
         self.config_dir = config_dir
         self.label = label or server_url
+        self.ca_bundle = ca_bundle
+        self.tls_verify = tls_verify
         self._session_key: Optional[str] = None
 
     # ------------------------------------------------------------------
@@ -40,6 +44,19 @@ class BwSession:
     def _env(self, extra: Optional[dict] = None) -> dict:
         env = os.environ.copy()
         env["BITWARDENCLI_APPDATA_DIR"] = str(self.config_dir)
+
+        # The bw CLI is a Node application and does not consult requests' TLS
+        # settings, so a self-signed destination has to be handled here as well as
+        # in wipe.py. Without this, BW_DEST_TLS_VERIFY=false silenced the warning
+        # on the api wipe path while every CLI call still failed to connect.
+        if self.ca_bundle is not None:
+            env["NODE_EXTRA_CA_CERTS"] = str(self.ca_bundle)
+        elif not self.tls_verify:
+            # Last resort, and genuinely unsafe — it disables certificate
+            # validation for the whole Node process. Preferred route is a CA
+            # bundle via BW_DEST_CA_BUNDLE, which keeps validation switched on.
+            env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
+
         if extra:
             env.update(extra)
         return env

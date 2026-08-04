@@ -15,8 +15,14 @@ log = logging.getLogger("bwsync")
 @dataclass
 class RestoreResult:
     items_restored: int = 0
+    items_expected: int = 0
     attachments_restored: int = 0
     attachment_failures: List[str] = field(default_factory=list)
+
+    @property
+    def item_count_matches(self) -> bool:
+        """Whether the destination confirmed as many items as the source sent."""
+        return self.items_restored == self.items_expected
 
 
 def restore_vault(
@@ -24,17 +30,24 @@ def restore_vault(
     export: "ExportResult",
     cfg: "Config",
 ) -> RestoreResult:
-    result = RestoreResult()
+    result = RestoreResult(items_expected=export.item_count)
 
     # Import vault JSON (restores items + folders)
     session.run("import", "bitwardenjson", str(export.json_path))
-    result.items_restored = export.item_count
+
+    # Sync local cache so newly imported items are visible. This has to happen
+    # before the count below as well as before attachment matching — without it
+    # the CLI answers from a cache that predates the import.
+    session.run("sync")
+
+    # Count what the destination actually holds rather than assuming the import
+    # placed everything that was sent. `bw import` can exit zero having restored
+    # fewer items than the file contained, and reporting export.item_count here
+    # would render that partial success indistinguishable from a full one.
+    result.items_restored = len(session.run_json("list", "items"))
 
     if not export.attachments:
         return result
-
-    # Sync local cache so newly imported items are visible
-    session.run("sync")
 
     # Build lookup: (item_name, folder_id_in_new_vault) → item_id
     vault_data = json.loads(export.json_path.read_text(encoding="utf-8"))

@@ -51,6 +51,57 @@ def save_last_synced_keys(state_path: Path, keys: FrozenSet[Key]) -> None:
     )
 
 
+@dataclass
+class VerifyResult:
+    """Outcome of the post-restore comparison (see verify_restore)."""
+    src_count: int
+    dst_count: int
+    missing: List[Key] = field(default_factory=list)   # in source, absent from destination
+    extra: List[Key] = field(default_factory=list)     # in destination, absent from source
+
+    @property
+    def ok(self) -> bool:
+        return not self.missing and not self.extra
+
+
+def verify_restore(export: "ExportResult", dst_session: "BwSession") -> VerifyResult:
+    """Re-read the destination after a restore and confirm it matches the source.
+
+    Everything before this point reports what was *sent*. `bw import` exiting zero
+    is not evidence that the destination now holds the data — this reads it back and
+    compares by the same (item_name, folder_name) key the pre-wipe audit uses.
+
+    Non-fatal by design: the wipe and restore have already happened, so a mismatch
+    is something the operator must see, not something aborting can undo. It is
+    surfaced loudly and reflected in the exit code rather than raising.
+    """
+    vault_data = json.loads(export.json_path.read_text(encoding="utf-8"))
+    src_folder_map = {f["id"]: f["name"] for f in vault_data.get("folders", [])}
+
+    src_keys: set = set()
+    for item in vault_data.get("items", []):
+        folder_id = item.get("folderId")
+        folder_name = src_folder_map.get(folder_id, "") if folder_id else ""
+        src_keys.add((item.get("name", ""), folder_name))
+
+    dst_folders = dst_session.run_json("list", "folders")
+    dst_folder_map = {f["id"]: f["name"] for f in dst_folders}
+
+    dst_items = dst_session.run_json("list", "items")
+    dst_keys: set = set()
+    for item in dst_items:
+        folder_id = item.get("folderId")
+        folder_name = dst_folder_map.get(folder_id, "") if folder_id else ""
+        dst_keys.add((item.get("name", ""), folder_name))
+
+    return VerifyResult(
+        src_count=len(src_keys),
+        dst_count=len(dst_items),
+        missing=sorted(src_keys - dst_keys),
+        extra=sorted(dst_keys - src_keys),
+    )
+
+
 def audit_vaults(
     export: "ExportResult",
     dst_session: "BwSession",

@@ -1,6 +1,6 @@
 import logging
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,7 +12,7 @@ log = logging.getLogger("bwsync")
 
 def create_backup(json_path: Path, cfg: "Config") -> Path:
     cfg.backup_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     out_path = cfg.backup_dir / f"vault-{timestamp}.json.gpg"
 
     result = subprocess.run(
@@ -35,7 +35,9 @@ def create_backup(json_path: Path, cfg: "Config") -> Path:
 
 
 def prune_backups(cfg: "Config") -> None:
-    cutoff = datetime.utcnow() - timedelta(days=cfg.backup_retention_days)
+    # Naive UTC: the timestamp parsed back out of the filename has no tzinfo, so the
+    # cutoff must be naive too or the comparison raises TypeError.
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=cfg.backup_retention_days)
     pruned = 0
     for f in cfg.backup_dir.glob("vault-*.json.gpg"):
         try:

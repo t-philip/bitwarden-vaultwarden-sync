@@ -47,9 +47,11 @@ def _wipe_via_cli(session: "BwSession") -> None:
 
 def _wipe_via_api(cfg: "Config") -> None:
     base = cfg.bw_dest_url.rstrip("/")
-    verify = cfg.bw_dest_tls_verify
+    # requests accepts a CA bundle path in place of the bool, so a configured
+    # bundle keeps verification enabled rather than turning it off.
+    verify = str(cfg.bw_dest_ca_bundle) if cfg.bw_dest_ca_bundle else cfg.bw_dest_tls_verify
 
-    if not verify:
+    if verify is False:
         warnings.filterwarnings("ignore", category=urllib3.exceptions.InsecureRequestWarning)
 
     # Step 1 — get KDF parameters

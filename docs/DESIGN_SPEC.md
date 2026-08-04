@@ -1,10 +1,11 @@
 # bitwarden-vaultwarden-sync
-## Design Specification v1.0 — As-Built
+## Design Specification v1.1 — As-Built
 
 **Author:** T. Philip — <https://github.com/t-philip>
-**Date:** 5 August 2026
-**Status:** Written from the shipped code. This document describes what the tool
-actually does, including where it falls short.
+**v1.0:** 5 August 2026 — written from the shipped code
+**v1.1:** 5 August 2026 — five of the six defects recorded in §10 fixed and retested;
+§9 and §10 updated to match
+**Status:** Describes what the tool actually does, including where it falls short.
 **Licence:** GPL-3.0, same as the code.
 
 ---
@@ -463,7 +464,8 @@ replica*. An empty replica is the better failure.
 | F9 | Attachment has no matching item | Logged, collected, reported | Sync completes; that attachment is missing |
 | F10 | Attachment upload fails | Same as F9 | Same |
 | F11 | Telegram unreachable | Warning only | Never masks or replaces the real error |
-| F12 | Temp cleanup fails | Swallowed silently | **Plaintext export may survive the run** — see §10.4 |
+| F12 | Temp cleanup fails | Warning naming the directory; exception still suppressed | **Plaintext export may survive the run** — but it is now reported. See §10.4 |
+| F13 | Destination does not match source after restore | Every discrepancy logged, Telegram alert, exit 1, state file not updated | The restore already happened; this makes a partial one visible. See §10.3 |
 
 F5 is worth calling out: a failed backup stops the run *before* anything is destroyed,
 rather than proceeding unprotected. That is the intended priority.
@@ -484,8 +486,8 @@ deliver one never changes the exit code.
 
 ### 9.1 Covered by automated tests
 
-21 tests, all passing (`pytest tests/ -q`, Python 3.13.13, 0.58 s). They cover the two
-areas where a logic error would be silent and costly:
+42 tests, all passing (`pytest tests/ -q`, Python 3.13.13, 0.38 s). They cover the areas
+where a logic error would be silent and costly:
 
 - **Audit and rename tolerance** (`test_audit_rename_tolerance.py`, 11 tests) — matching
   vaults, orphan detection, tolerance of a recorded rename, a genuine orphan still
@@ -494,18 +496,27 @@ areas where a logic error would be silent and costly:
 - **Matching helpers** (`test_matching.py`, 10 tests) — folder-name resolution and
   `_safe_name()` sanitisation, including path separators, angle brackets, empty input
   and truncation.
+- **Post-restore verification** (`test_verify_restore.py`, 9 tests) — missing items,
+  extra items, an item restored into the wrong folder counting as both, and folder-name
+  resolution across two servers that assign different folder IDs. See §10.3.
+- **Destination TLS handling** (`test_tls_config.py`, 8 tests) — the environment handed
+  to the `bw` CLI for every combination of CA bundle and verification flag, plus the
+  validation that rejects a non-existent bundle. See §10.1.
+- **Backup retention** (`test_backup_prune.py`, 6 tests) — age-based pruning, leaving
+  unrelated files untouched, and a regression guard on the naive/aware datetime
+  comparison. See §10.5.
 
-Both suites use fakes (`SimpleNamespace`) rather than a live vault, which is possible
-only because `audit_vaults()` is a pure function over an already-written export file
-(§4.3).
+These suites use fakes (`SimpleNamespace`) rather than a live vault, which is possible
+only because `audit_vaults()` and `verify_restore()` are pure functions over an
+already-written export file (§4.3).
 
 ### 9.2 **Not** covered by any automated test
 
-No test exercises: `session.py` (login/unlock/logout), `export.py`'s vault export or
-attachment download, `wipe.py` (**neither** method — including the KDF computation in
-§5.4), `restore.py`'s import and re-upload path, `backup.py`'s GPG invocation or
-pruning, `notify.py`, or `config.py`'s validation. That is the majority of the modules
-and every part that talks to a real server or destroys data.
+No test exercises: `session.py`'s lifecycle (login/unlock/logout — only its environment
+construction is tested), `export.py`'s vault export or attachment download, `wipe.py`
+(**neither** method — including the KDF computation in §5.4), `restore.py`'s import and
+re-upload path, `backup.py`'s GPG invocation, or `notify.py`. That is still most of the
+code that talks to a real server or destroys data.
 
 The reason is structural, not neglect: these are thin wrappers over an external binary
 and two live HTTPS servers, and a meaningful test needs a real Vaultwarden instance and
@@ -527,56 +538,117 @@ those paths work; they are reasoned, not demonstrated.
 
 ---
 
-## 10. Known gaps — found while writing this document, not fixed
+## 10. Gaps found while writing this document — and fixed
 
-### 10.1 `BW_DEST_TLS_VERIFY` is only half-applied
+Writing this specification surfaced six defects. Five are now fixed, in the same release
+as this document. They are recorded rather than deleted, because the reasoning behind
+each fix is part of the design.
 
-`config.py` reads `BW_DEST_TLS_VERIFY`, but it is consumed only by `wipe.py`, so it
-affects **only** the `api` wipe path. Every other destination operation goes through the
-`bw` CLI, which does its own TLS validation and is unaffected by this setting. Setting
-it to `false` therefore does **not** make the tool work against a self-signed
-certificate — the CLI calls still fail, and they need `NODE_EXTRA_CA_CERTS` instead.
+**How far each is verified is stated per item.** Nothing requiring a live Bitwarden.com
+account and a real Vaultwarden instance has been exercised end to end — §9.2 still
+applies, and these fixes do not change that.
 
-Until this document was written the variable was also absent from both the README
-configuration table and `.env.example`, so a user with a self-signed certificate had no
-way to discover it at all. The README now documents it, with the caveat above. The
-underlying half-application is **not** fixed: making the setting mean what its name
-implies requires plumbing a CA bundle through to every `bw` invocation in
-`session.py`.
+### 10.1 `BW_DEST_TLS_VERIFY` reached only half the code — **fixed**
 
-### 10.2 `items_restored` is assumed, not confirmed
+`BW_DEST_TLS_VERIFY` was consumed only by `wipe.py`, so it applied to the `api` wipe
+path and nothing else. Every other destination operation goes through the `bw` CLI — a
+Node application that consults neither `requests`' settings nor this flag — so setting it
+to `false` did **not** make the tool work against a self-signed certificate. The CLI
+calls still failed. It was also absent from the README table and `.env.example`, so it
+was undiscoverable to begin with.
 
-`restore.py` sets `result.items_restored = export.item_count` immediately after
-`bw import` returns, without querying the destination. The closing "Sync complete — N
-item(s)" line therefore reports what was **sent**, not what the destination confirms it
-holds. A partial import that still exits zero would be reported as a full success. A
-post-restore count would be one extra `bw list items` call.
+**Fix.** `BwSession` now receives the TLS settings and exports them to every `bw`
+invocation: a configured CA bundle as `NODE_EXTRA_CA_CERTS`, or — if verification is
+disabled outright — `NODE_TLS_REJECT_UNAUTHORIZED=0`.
 
-### 10.3 No post-restore verification pass
+A new `BW_DEST_CA_BUNDLE` is the **preferred** route and deliberately takes precedence
+over `BW_DEST_TLS_VERIFY=false`, because trusting a specific CA keeps certificate
+verification switched on where disabling it does not. `requests` accepts a bundle path in
+place of its `verify` boolean, so one setting now covers both paths.
+`Config.validate()` rejects a bundle path that does not exist: Node silently ignores an
+unreadable `NODE_EXTRA_CA_CERTS` and falls back to the system trust store, so a typo
+would otherwise degrade to "unverified" without saying so. Disabling verification
+outright now logs a warning on every run.
 
-More generally, the run ends at the moment of writing. Nothing re-reads the destination
-to confirm it now matches the source — even though `audit_vaults()` is exactly the
-function that could do it, and running it a second time after restore would turn "we
-sent the data" into "we verified the data arrived".
+*Verified:* 8 unit tests over the environment handed to the CLI and over the validation
+rule. **Not** exercised against a real self-signed Vaultwarden.
 
-### 10.4 Temp cleanup failure is silent
+### 10.2 `items_restored` was assumed, not confirmed — **fixed**
 
-`shutil.rmtree(tmp)` is wrapped in a bare `except Exception: pass`. If cleanup fails,
-the **decrypted vault export survives** with no warning in the log. The suppression is
-correct in intent — cleanup must not mask a real error — but it should log a warning at
-minimum. This is the one gap here with a direct security consequence.
+`restore.py` set `items_restored = export.item_count` immediately after `bw import`
+returned, so the closing "Sync complete — N item(s)" line reported what was *sent*. An
+import that exited zero having restored fewer items would have read as a full success.
 
-### 10.5 `datetime.utcnow()` is deprecated
+**Fix.** The count now comes from `bw list items` against the destination, after the
+post-import `sync` that makes the imported items visible to the CLI's cache.
+`RestoreResult` also carries `items_expected` and an `item_count_matches` property, and a
+mismatch logs a warning naming both numbers.
 
-`backup.py` uses `datetime.utcnow()`, which raises a `DeprecationWarning` on Python 3.12+
-and is scheduled for removal. Confirmed on Python 3.13.13. Backup filenames and
-retention still work; the fix is `datetime.now(datetime.UTC)`.
+*Verified:* by construction and indirectly by §10.3's verification pass. Not directly
+unit-tested — it is a single call against a live CLI.
 
-### 10.6 Documented Python floor is unverified
+### 10.3 No post-restore verification — **fixed**
 
-The README states Python 3.9+. The code's use of `str.removeprefix` / `removesuffix`
-(`backup.py`) is consistent with that floor — both are 3.9 additions — but the suite has
-only been run on 3.13. No CI matrix exists to substantiate the claim.
+The run previously ended at the moment of writing. Nothing re-read the destination to
+confirm it matched the source.
+
+**Fix.** `verify_restore()` in `audit.py` reads the destination back after the restore
+and compares it against the source export using the same `(item_name, folder_name)` key
+as the pre-wipe audit, reporting `missing` (in source, absent from destination) and
+`extra` separately. A mismatch logs every affected item, sends a distinct Telegram alert,
+and exits non-zero.
+
+Two design points are worth stating:
+
+- **It cannot undo anything, and is not meant to.** The wipe and restore have already
+  happened by the time it runs. Its job is to ensure a silent partial restore is *seen*;
+  the exit code carries that to whatever scheduled the run.
+- **`last_synced_keys.json` is written only when verification passes.** Recording a key
+  set the destination does not actually hold would let the next run's rename tolerance
+  (§7.3) excuse a genuinely missing item as an explained rename. On a mismatch the file
+  is left untouched, so the next run degrades to the strict "any destination-only item
+  aborts" behaviour — the same safe default as a missing state file.
+
+*Verified:* 9 unit tests, covering missing items, extra items, an item restored into the
+wrong folder counting as both, and folder-name resolution across differing folder IDs.
+
+### 10.4 Temp cleanup failure was silent — **fixed**
+
+`shutil.rmtree(tmp)` was wrapped in a bare `except Exception: pass`. A failed cleanup
+left the **decrypted vault export** on the filesystem with nothing in the log — defeating
+precisely the tmpfs staging design of §5.1.
+
+**Fix.** The exception is still suppressed, so cleanup can never mask the real error that
+brought the run into the `finally` block, but it now logs a warning naming the directory
+and stating plainly that it may still hold a decrypted copy of the vault. A second check
+catches the case where `rmtree` returns without error yet the directory still exists.
+
+*Verified:* by inspection. Reproducing a cleanup failure needs an OS-level condition the
+suite does not simulate.
+
+### 10.5 `datetime.utcnow()` was deprecated — **fixed**
+
+`backup.py` used `datetime.utcnow()`, which warns on Python 3.12+ and is scheduled for
+removal.
+
+**Fix.** Replaced with `datetime.now(timezone.utc)`. One subtlety in `prune_backups()`:
+the timestamp parsed back out of a backup filename is naive, so the cutoff is explicitly
+converted back to naive before comparison. Without that, the fix would have introduced a
+`TypeError` on a path that only executes once a backup is old enough to prune — a failure
+that would have stayed hidden for as many days as the retention window.
+
+*Verified:* every module imports under `-W error::DeprecationWarning`; 6 new unit tests
+for `prune_backups`, including an explicit regression guard for the naive/aware
+comparison.
+
+### 10.6 Documented Python floor is unverified — **still open**
+
+The README states Python 3.9+. The code's use of `str.removeprefix` / `removesuffix` is
+consistent with that floor, but the suite has only ever been run on 3.13.13. No CI matrix
+exists to substantiate the claim.
+
+This one is **not** fixed, and is listed as open rather than quietly dropped:
+substantiating it means adding CI, not changing code.
 
 ---
 
@@ -598,14 +670,12 @@ not duplicated here. Three design notes:
 
 ## 12. Possible future work
 
-Ordered by value, given §10.
-
-1. Post-restore verification (§10.3) — reuse `audit_vaults()` in reverse.
-2. Fix §10.1, §10.2, §10.4, §10.5 — all small and all found by writing this document.
-3. An integration test against a throwaway Vaultwarden container, which would close most
-   of §9.2.
-4. Organisation/collection support, if the `bw` CLI's export makes it tractable.
-5. Age or restic as a backup backend alternative to GPG.
+1. **An integration test against a throwaway Vaultwarden container.** This is the
+   highest-value item by a wide margin — it would close most of §9.2, which remains the
+   largest risk in the project now that §10's defects are fixed.
+2. A CI matrix to substantiate or correct the documented Python 3.9 floor (§10.6).
+3. Organisation/collection support, if the `bw` CLI's export makes it tractable.
+4. Age or restic as a backup backend alternative to GPG.
 
 ---
 

@@ -11,7 +11,12 @@ from dotenv import load_dotenv
 from bwsync.config import Config
 from bwsync.log import setup_logging
 from bwsync.session import BwSession
-from bwsync.audit import audit_vaults, load_last_synced_keys, save_last_synced_keys
+from bwsync.audit import (
+    audit_vaults,
+    verify_restore,
+    load_last_synced_keys,
+    save_last_synced_keys,
+)
 from bwsync.export import export_vault
 from bwsync.wipe import wipe_vault
 from bwsync.restore import restore_vault
@@ -94,7 +99,17 @@ def main() -> None:
         master_password=cfg.bw_dest_password,
         config_dir=cfg.appdata_dir / "dst-appdata",
         label="destination",
+        ca_bundle=cfg.bw_dest_ca_bundle,
+        tls_verify=cfg.bw_dest_tls_verify,
     )
+
+    if cfg.bw_dest_ca_bundle is not None:
+        log.info("Destination TLS: trusting CA bundle %s", cfg.bw_dest_ca_bundle)
+    elif not cfg.bw_dest_tls_verify:
+        log.warning(
+            "Destination TLS verification is DISABLED (BW_DEST_TLS_VERIFY=false). "
+            "Prefer BW_DEST_CA_BUNDLE, which keeps verification on."
+        )
 
     try:
         log.info("Logging in to source (%s)…", cfg.bw_source_url)
@@ -172,10 +187,26 @@ def main() -> None:
         log.info("Restoring vault…")
         result = restore_vault(dst, export, cfg)
 
+        # Read the destination back and confirm it matches the source. Everything
+        # above this point reports what was sent; only this reports what arrived.
+        log.info("Verifying restored vault…")
+        verify = verify_restore(export, dst)
+
         # AT-125: dst now equals src exactly (that's what the wipe+restore just
         # did) — persist this run's source keys so the next run's audit can
         # tell a real rename/deletion apart from a genuine out-of-band orphan.
-        save_last_synced_keys(state_path, audit.src_keys)
+        # Only persisted when verification agrees: recording a key set the
+        # destination does not actually hold would let the next run's rename
+        # tolerance excuse a genuinely missing item.
+        if verify.ok:
+            save_last_synced_keys(state_path, audit.src_keys)
+        else:
+            log.warning(
+                "Verification mismatch — not updating %s. The next run will treat "
+                "every destination-only item as abort-worthy, which is the safe "
+                "default.",
+                state_path.name,
+            )
 
         log.info(
             "Sync complete — %d item(s), %d/%d attachment(s) restored. "
@@ -187,10 +218,44 @@ def main() -> None:
             result.items_restored,
         )
 
+        if not result.item_count_matches:
+            log.warning(
+                "Item count mismatch — source exported %d item(s) but the "
+                "destination reports %d.",
+                result.items_expected,
+                result.items_restored,
+            )
+
         if result.attachment_failures:
             log.warning("%d attachment(s) could not be restored:", len(result.attachment_failures))
             for msg in result.attachment_failures:
                 log.warning("  %s", msg)
+
+        if not verify.ok:
+            if verify.missing:
+                log.error(
+                    "%d item(s) present in Bitwarden.com are MISSING from Vaultwarden "
+                    "after the restore:",
+                    len(verify.missing),
+                )
+                for name, folder in verify.missing:
+                    log.error("  • %r (%s)", name, folder or "no folder")
+            if verify.extra:
+                log.error(
+                    "%d unexpected item(s) present in Vaultwarden after the restore:",
+                    len(verify.extra),
+                )
+                for name, folder in verify.extra:
+                    log.error("  • %r (%s)", name, folder or "no folder")
+
+            notifier.send_verify_failure(verify.missing, verify.extra)
+            log.error(
+                "Restore verification FAILED. The destination does not match the "
+                "source — re-run the sync and investigate if it recurs."
+            )
+            sys.exit(1)
+
+        log.info("Verification passed — destination matches source (%d items).", verify.dst_count)
 
     except Exception as exc:
         log.error("Sync failed: %s", exc, exc_info=(cfg.log_level == "DEBUG"))
@@ -200,11 +265,25 @@ def main() -> None:
     finally:
         src.logout()
         dst.logout()
-        # Wipe temp dir — contains plaintext vault data
+        # Wipe temp dir — contains the decrypted vault export.
+        # The exception is suppressed so cleanup can never mask the real error that
+        # brought us here, but it must never be silent: a failure here means
+        # plaintext vault data is still on the filesystem, which is exactly the
+        # thing the tmpfs staging design exists to prevent.
         try:
             shutil.rmtree(tmp)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning(
+                "Could not remove temp directory %s: %s — it may still contain a "
+                "DECRYPTED copy of your vault. Remove it manually.",
+                tmp, exc,
+            )
+        else:
+            if tmp.exists():
+                log.warning(
+                    "Temp directory %s still exists after cleanup — check it for "
+                    "plaintext vault data.", tmp,
+                )
 
 
 if __name__ == "__main__":
