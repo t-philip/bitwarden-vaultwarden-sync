@@ -76,6 +76,7 @@ fill in your values. The full reference is in the example file and in
 | `BW_DEST_CLIENT_SECRET` | Yes | | Destination API key client secret |
 | `BW_DEST_PASSWORD` | Yes | | Destination master password |
 | `VW_WIPE_METHOD` | | `cli` | `cli` or `api` (see below) |
+| `BW_DEST_TLS_VERIFY` | | `true` | Verify the destination's TLS certificate. **Applies only to the `api` wipe method** — `bw` CLI operations are unaffected and need `NODE_EXTRA_CA_CERTS` instead |
 | `BACKUP_ENABLED` | | `true` | Enable GPG backup before each sync |
 | `BACKUP_DIR` | | `/var/backups/bw-sync` | Backup output directory |
 | `BACKUP_GPG_PASSPHRASE` | If backup enabled | | Passphrase for GPG encryption |
@@ -127,11 +128,20 @@ reports what would be restored — without making any changes to the destination
 
 See [docs/scheduling.md](docs/scheduling.md) for systemd timer and cron examples.
 
+## Design
+
+[docs/DESIGN_SPEC.md](docs/DESIGN_SPEC.md) explains how the tool is built and why —
+the threat model, why it wipes and restores instead of merging, how the
+destination-only audit stays safe, and an honest account of what is and is not
+covered by tests.
+
 ## Known limitations
 
 - Organisation items are not synced (personal vault only)
 - Attachment matching requires unique item names within each folder
 - `api` wipe method requires PBKDF2 KDF on the destination
+- `BW_DEST_TLS_VERIFY` applies only to the `api` wipe method, not to `bw` CLI
+  operations — see [DESIGN_SPEC §10.1](docs/DESIGN_SPEC.md#101-bw_dest_tls_verify-is-undocumented-and-only-half-applied)
 
 ## Contributing
 
