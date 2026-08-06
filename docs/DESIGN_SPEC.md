@@ -6,7 +6,7 @@
 **v1.1:** 5 August 2026 — five of the six defects recorded in §10 fixed and retested;
 §9 and §10 updated to match
 **Status:** Describes what the tool actually does, including where it falls short.
-**Licence:** GPL-3.0, same as the code.
+**Licence:** AGPL-3.0, same as the code. Relicensed from GPL-3.0 on 2026-08-06 — see §13.
 
 ---
 
@@ -681,8 +681,16 @@ not duplicated here. Three design notes:
 
 ## 13. Licence and provenance
 
-Published under **GPL-3.0** alongside the code it describes, so the reasoning is
+Published under **AGPL-3.0** alongside the code it describes, so the reasoning is
 available and not only the implementation.
+
+**Licence history.** This repository was published under GPL-3.0 until 2026-08-06, when
+it was relicensed to AGPL-3.0. The change adds §13 (Remote Network Interaction): anyone
+who modifies this code and makes it available to users over a network must offer those
+users the corresponding source — relevant here since this tool syncs against a
+self-hosted Vaultwarden server. Copyright is held solely by T. Philip, so the change was
+made without third-party consent. Releases already published under GPL-3.0 remain
+available under GPL-3.0 to anyone who received them — that grant is not revocable.
 
 Written and built by **T. Philip** — <https://github.com/t-philip>.
 Repository: <https://github.com/t-philip/bitwarden-vaultwarden-sync>.

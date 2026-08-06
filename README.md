@@ -166,7 +166,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-[GPL-3.0](LICENSE)
+[AGPL-3.0](LICENSE). If you modify this and make it available to others over a network,
+you must offer those users the source of your modified version.
 
 ## Reporting issues
 
