@@ -1,0 +1,42 @@
+name: Privacy check
+
+# Server-side backstop for docs/PRIVACY.md, in the same spirit as
+# check-version.yml: the pre-push hook is the thing that actually prevents a
+# leak, but a hook lives in .git/hooks, so it is absent on a fresh clone and
+# skipped entirely by `git push --no-verify`. This runs regardless.
+#
+# It cannot un-publish anything -- by the time it runs, the commit is on
+# GitHub. What it buys is finding out in minutes rather than never, which for
+# the two leaks that prompted this would have meant catching them the same
+# day instead of after they had shipped in a release.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check-privacy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Need history for the diff; a shallow clone has no base to compare.
+          fetch-depth: 0
+
+      - name: Scan added lines for installation-specific content
+        env:
+          # For a push, compare against what was there before. `before` is all
+          # zeroes on a branch's first push, so fall back to the parent commit.
+          BEFORE: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "${BASE_SHA:-}" ]; then
+              base="$BASE_SHA"
+          elif [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+              base="$BEFORE"
+          else
+              base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          fi
+          echo "comparing against $base"
+          PRIVACY_BASE="$base" bash scripts/check_privacy.sh --push
