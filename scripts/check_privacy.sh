@@ -157,13 +157,28 @@ if [ -f "$DENYLIST_FILE" ]; then
     done < "$DENYLIST_FILE"
 fi
 
-# --- Advisory ---------------------------------------------------------------
-# Fixture dates cannot be told apart from real ones mechanically, so this
-# nudges rather than blocks: years <= 2022 predate this project's data and
-# are unambiguously synthetic.
-report WARN "new fixture date >= 2023 (prefer a synthetic year <= 2022)" \
-    '^\+.*"20(2[3-9]|[3-9][0-9])-[0-9]{2}-[0-9]{2}' \
-    '^\+\s*(#|--|\*|//)'
+# --- The fiction window -----------------------------------------------------
+# Test data uses 1999-2001 and nothing else. This is the rule that makes the
+# whole check work: every real data source here begins well after 2001, so a
+# date inside that window provably is not a record of anything, and a date
+# outside it in quoted data is a hard signal rather than a guess.
+#
+# Before this convention there was no mechanical way to tell a fixture date
+# from a real one, so the rule could only warn -- and a warning is what let a
+# real household's dates sit in the test suite through several releases.
+#
+# Relative dates are untouched and should stay relative: a fixture built from
+# `_START + timedelta(...)`, or logic that works from "today", carries no
+# calendar fact to leak and pinning it would break the test.
+report FAIL "absolute date outside the 1999-2001 fiction window" \
+    '"(19[0-8][0-9]|199[0-8]|200[2-9]|20[1-9][0-9])-[0-9]{2}-[0-9]{2}'
+
+# Free-text fields are where a verbatim note from a real database ends up --
+# an occupancy note, a device label, a description. Default them to a
+# placeholder rather than inventing something that reads like a real entry.
+report FAIL "free-text field with non-placeholder content" \
+    '(notes|note|description|comment|label|title)\s*[=:]\s*"[^"]{4,}"' \
+    '"Test Data|placeholder|example|e\.g\.|lorem'
 
 # --- Verdict ----------------------------------------------------------------
 echo
