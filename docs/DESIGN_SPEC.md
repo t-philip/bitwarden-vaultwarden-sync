@@ -1,10 +1,14 @@
 # bitwarden-vaultwarden-sync
-## Design Specification v1.1 — As-Built
+## Design Specification v1.2 — As-Built
 
 **Author:** T. Philip — <https://github.com/t-philip>
 **v1.0:** 5 August 2026 — written from the shipped code
 **v1.1:** 5 August 2026 — five of the six defects recorded in §10 fixed and retested;
 §9 and §10 updated to match
+**v1.2:** 2026 — `BW_SOURCE_URL` region support documented (see §1.1);
+`bwsync/__init__.py`'s `__version__` corrected — it had stayed at `1.0.0` through
+three subsequent releases (v1.1.0–v1.3.0) uncaught, the same drift pattern found
+in OmniMeter.
 **Status:** Describes what the tool actually does, including where it falls short.
 **Licence:** AGPL-3.0, same as the code. Relicensed from GPL-3.0 on 2026-08-06 — see §13.
 
@@ -38,6 +42,13 @@ an independent, locally-controlled replica — so that a Bitwarden.com outage, a
 lockout, or subscription lapse does not put the vault out of reach. Bitwarden offers no
 first-party server-to-server replication, so the copy has to be driven from outside by
 something that can talk to both.
+
+Bitwarden runs separate, non-mergeable clouds per data region (US at
+`vault.bitwarden.com`, EU at `vault.bitwarden.eu`); "Bitwarden.com" throughout this
+document is shorthand for whichever official cloud the account lives in. `BW_SOURCE_URL`
+(`bwsync/session.py`) is passed through unchanged for any URL that isn't a known alias
+of the US cloud, so pointing it at the EU cloud — or a self-hosted source — needs no
+code change, only the matching `BW_SOURCE_EMAIL`/API-key pair for that account.
 
 ### 1.2 In scope
 

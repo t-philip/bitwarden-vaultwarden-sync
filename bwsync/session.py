@@ -13,6 +13,15 @@ _BITWARDEN_DEFAULT_URLS = {
 }
 
 
+def canonical_server_url(url: str) -> str:
+    """Normalize known aliases of the official US cloud to its canonical form.
+
+    Any other URL — including the official EU cloud (vault.bitwarden.eu) or a
+    self-hosted server — is returned unchanged.
+    """
+    return "https://vault.bitwarden.com" if url in _BITWARDEN_DEFAULT_URLS else url
+
+
 class BwSession:
     """Wrapper around the Bitwarden CLI for a single vault (source or destination)."""
 
@@ -92,12 +101,7 @@ class BwSession:
             pass  # not logged in yet, or a stale/invalid session — ignore
 
         # Always set server URL explicitly so isolated config dirs start clean
-        canonical = (
-            "https://vault.bitwarden.com"
-            if self.server_url in _BITWARDEN_DEFAULT_URLS
-            else self.server_url
-        )
-        self._run("config", "server", canonical)
+        self._run("config", "server", canonical_server_url(self.server_url))
 
         self._run(
             "login", "--apikey",

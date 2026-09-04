@@ -18,14 +18,25 @@ npm install -g @bitwarden/cli
 # https://bitwarden.com/help/cli/#download-and-install
 ```
 
-## Step 1 — Get API keys from Bitwarden.com
+## Step 1 — Get API keys from Bitwarden
 
-1. Log in at [vault.bitwarden.com](https://vault.bitwarden.com)
+Bitwarden's US and EU clouds are separate, non-mergeable accounts — log in at the
+one your account actually lives in:
+
+- US cloud: [vault.bitwarden.com](https://vault.bitwarden.com) — leave
+  `BW_SOURCE_URL` unset (defaults to this).
+- EU cloud: [vault.bitwarden.eu](https://vault.bitwarden.eu) — set
+  `BW_SOURCE_URL=https://vault.bitwarden.eu`.
+
+1. Log in at the URL for your region
 2. Go to **Account Settings → Security → API Key**
 3. Click **View API Key** (requires master password)
 4. Note your `client_id` and `client_secret`
 
 These become `BW_SOURCE_CLIENT_ID` and `BW_SOURCE_CLIENT_SECRET` in your `.env`.
+`BW_SOURCE_EMAIL` must be the login email for that same account — if you have
+previously migrated an account from one region to the other, this may not be the
+email you expect.
 
 ## Step 2 — Get API keys from Vaultwarden
 

@@ -65,7 +65,7 @@ fill in your values. The full reference is in the example file and in
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `BW_SOURCE_URL` | | `https://vault.bitwarden.com` | Source server URL |
+| `BW_SOURCE_URL` | | `https://vault.bitwarden.com` | Source server URL. Use `https://vault.bitwarden.eu` for the official EU data region — see [docs/setup.md](docs/setup.md) |
 | `BW_SOURCE_EMAIL` | Yes | | Source account email |
 | `BW_SOURCE_CLIENT_ID` | Yes | | Source API key client ID |
 | `BW_SOURCE_CLIENT_SECRET` | Yes | | Source API key client secret |
