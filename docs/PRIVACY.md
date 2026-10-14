@@ -38,7 +38,7 @@ Two halves, and **both** are required.
 **Structural** — `scripts/check_privacy.sh`, run automatically by the
 `pre-push` hook. It checks the *diff*, not the whole tree, so it stays quiet
 enough to survive: bare dates in prose, durations attached to household
-events, internal host names, real IPs, emails, quoted log notes.
+events, internal DNS suffixes, real IPs, emails, quoted log notes.
 
 The hook lives in the tracked `.githooks/` directory rather than `.git/hooks`,
 because `.git/` is never cloned — a hook kept there exists only on the machine
@@ -52,9 +52,10 @@ git config core.hooksPath .githooks
 a hook can be skipped with `--no-verify`. It cannot un-publish anything; it
 buys finding out in minutes rather than never.
 
-Repo-specific terms go in `.privacy-denylist` — one extended-regex per line,
-`#` for comments — so this script stays byte-identical across every public
-repo and a fix can be copied once instead of diverging.
+Repo-specific, publishable terms go in `.privacy-denylist` — one extended-regex per
+line, `#` for comments — so this script stays byte-identical across every public
+repo. Private vocabulary goes in the untracked `.privacy-denylist.private` instead
+(see below).
 
 **Semantic** — a read of the diff by someone, or something, with no memory of
 writing it, answering the one question above.
@@ -66,3 +67,16 @@ capitalised string in the codebase.
 
 **A pass from the script does not mean the diff is safe to publish.** It means
 the cheap half found nothing.
+
+## Private vocabulary stays out of the repo
+
+A tracked denylist of private names would itself publish that vocabulary, so
+the names of your own hosts, sites and projects live in an untracked file,
+`.privacy-denylist.private` (gitignored): one extended regular expression per
+line, with comments on their own line only. Patterns that are invalid or match
+the empty string are rejected with a warning.
+
+`scripts/check_privacy.sh` loads that file when it is present and skips that one
+rule when it is absent (a fresh clone, or CI), so the generic structural rules
+always run. Because CI has no local file, it cannot enforce your private
+vocabulary: run the check locally before pushing.
