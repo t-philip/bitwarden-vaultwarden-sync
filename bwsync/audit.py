@@ -19,7 +19,7 @@ class AuditResult:
     dst_count: int
     src_keys: FrozenSet[Key] = field(default_factory=frozenset)
     dst_only: List[Key] = field(default_factory=list)             # genuinely unexpected — abort-worthy
-    tolerated_renames: List[Key] = field(default_factory=list)    # explained by AT-125 rename tolerance
+    tolerated_renames: List[Key] = field(default_factory=list)    # explained by rename tolerance
 
     @property
     def has_dst_only(self) -> bool:
@@ -29,7 +29,7 @@ class AuditResult:
 def load_last_synced_keys(state_path: Path) -> FrozenSet[Key]:
     """Keys (item_name, folder_name) restored to the destination during the
     last successful sync. Missing/unreadable file → empty set, which makes
-    audit_vaults() behave exactly as it did before AT-125 (any current
+    audit_vaults() behave exactly as it did before rename tolerance existed (any current
     dst-only item aborts) — the safe default for a first run or a corrupted
     state file."""
     try:
@@ -112,13 +112,13 @@ def audit_vaults(
     Matching is by (item_name, folder_name) — IDs are always different between
     Bitwarden.com and Vaultwarden even after a successful sync.
 
-    AT-125 rename tolerance: a destination-only item is only treated as a
+    Rename tolerance: a destination-only item is only treated as a
     genuine, abort-worthy orphan if it was NOT part of the last successful
     sync's restored set. Vaultwarden is wiped-and-restored from source on
     every run, so its only expected content immediately before this run is
     exactly what the last successful sync put there. A dst-only item that
     WAS part of that set is explained by a rename/deletion at the true
-    source since then (AT-123's failure mode) — safe to let the upcoming
+    source since then — safe to let the upcoming
     wipe remove it, no manual cleanup needed. A dst-only item that was never
     part of any run we performed is a real anomaly (something added to
     Vaultwarden out-of-band, bypassing the sync entirely) and still aborts.

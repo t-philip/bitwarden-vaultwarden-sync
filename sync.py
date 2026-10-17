@@ -131,7 +131,7 @@ def main() -> None:
             prune_backups(cfg)
 
         log.info("Auditing destination vault…")
-        # AT-125: last_synced_keys.json records what the last successful sync
+        # last_synced_keys.json records what the last successful sync
         # actually restored, so a dst-only item that matches it (renamed or
         # deleted at the true source since then) doesn't force a manual abort —
         # see audit_vaults()'s docstring for the full reasoning.
@@ -192,7 +192,7 @@ def main() -> None:
         log.info("Verifying restored vault…")
         verify = verify_restore(export, dst)
 
-        # AT-125: dst now equals src exactly (that's what the wipe+restore just
+        # dst now equals src exactly (that's what the wipe+restore just
         # did) — persist this run's source keys so the next run's audit can
         # tell a real rename/deletion apart from a genuine out-of-band orphan.
         # Only persisted when verification agrees: recording a key set the

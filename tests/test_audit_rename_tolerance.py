@@ -1,4 +1,4 @@
-"""Tests for AT-125: destination-only audit rename tolerance."""
+"""Tests for destination-only audit rename tolerance."""
 
 import json
 import sys
@@ -54,7 +54,7 @@ class TestAuditNoTolerance:
 
 
 class TestAuditRenameTolerance:
-    """AT-125: a dst-only item matching the last successful sync's key set is tolerated."""
+    """A dst-only item matching the last successful sync's key set is tolerated."""
 
     def test_renamed_item_tolerated_not_aborted(self, tmp_path):
         # Source renamed "OldName" -> "NewName" since the last sync.
