@@ -7,8 +7,7 @@
 §9 and §10 updated to match
 **v1.2:** 2026 — `BW_SOURCE_URL` region support documented (see §1.1);
 `bwsync/__init__.py`'s `__version__` corrected — it had stayed at `1.0.0` through
-three subsequent releases (v1.1.0–v1.3.0) uncaught, the same drift pattern found
-in OmniMeter.
+three subsequent releases (v1.1.0–v1.3.0) uncaught.
 **Status:** Describes what the tool actually does, including where it falls short.
 **Licence:** AGPL-3.0, same as the code. Relicensed from GPL-3.0 on 2026-08-06 — see §13.
 

@@ -46,12 +46,12 @@ class TestVerifyPasses:
         """Folder IDs differ between servers; matching is by folder *name*."""
         export = _export(
             tmp_path,
-            [{"name": "Router", "folderId": "src-f1"}],
-            folders=[{"id": "src-f1", "name": "Home"}],
+            [{"name": "Test Data Item", "folderId": "src-f1"}],
+            folders=[{"id": "src-f1", "name": "Test Data Folder A"}],
         )
         dst = _dst_session(
-            [{"name": "Router", "folderId": "dst-f9"}],
-            folders=[{"id": "dst-f9", "name": "Home"}],
+            [{"name": "Test Data Item", "folderId": "dst-f9"}],
+            folders=[{"id": "dst-f9", "name": "Test Data Folder A"}],
         )
         assert verify_restore(export, dst).ok
 
@@ -89,19 +89,19 @@ class TestVerifyDetectsProblems:
         """An item restored into the wrong folder is not the same item."""
         export = _export(
             tmp_path,
-            [{"name": "Router", "folderId": "f1"}],
-            folders=[{"id": "f1", "name": "Home"}],
+            [{"name": "Test Data Item", "folderId": "f1"}],
+            folders=[{"id": "f1", "name": "Test Data Folder A"}],
         )
         dst = _dst_session(
-            [{"name": "Router", "folderId": "f2"}],
-            folders=[{"id": "f2", "name": "Work"}],
+            [{"name": "Test Data Item", "folderId": "f2"}],
+            folders=[{"id": "f2", "name": "Test Data Folder B"}],
         )
 
         result = verify_restore(export, dst)
 
         assert not result.ok
-        assert result.missing == [("Router", "Home")]
-        assert result.extra == [("Router", "Work")]
+        assert result.missing == [("Test Data Item", "Test Data Folder A")]
+        assert result.extra == [("Test Data Item", "Test Data Folder B")]
 
     def test_everything_missing_when_destination_empty(self, tmp_path):
         export = _export(tmp_path, [{"name": "GitHub", "folderId": None}])

@@ -94,13 +94,13 @@ python sync.py --dry-run
 
 Expected output:
 ```
-2026-06-10 12:00:00  INFO      --- DRY RUN — wipe and restore will be skipped ---
-2026-06-10 12:00:02  INFO      Logging in to source (https://vault.bitwarden.com)…
-2026-06-10 12:00:04  INFO      Logging in to destination (https://vault.example.com)…
-2026-06-10 12:00:06  INFO      Exporting source vault…
-2026-06-10 12:00:10  INFO      Exported 142 item(s), 3 attachment(s).
-2026-06-10 12:00:11  INFO      Backup: /var/backups/bw-sync/vault-20260610-120010.json.gpg
-2026-06-10 12:00:11  INFO      Dry run complete. Would wipe destination and restore 142 item(s), 3 attachment(s). No changes made.
+1998-06-10 12:00:00  INFO      --- DRY RUN — wipe and restore will be skipped ---
+1998-06-10 12:00:02  INFO      Logging in to source (https://vault.bitwarden.com)…
+1998-06-10 12:00:04  INFO      Logging in to destination (https://vault.example.com)…
+1998-06-10 12:00:06  INFO      Exporting source vault…
+1998-06-10 12:00:10  INFO      Exported 142 item(s), 3 attachment(s).
+1998-06-10 12:00:11  INFO      Backup: /var/backups/bw-sync/vault-19980610-120010.json.gpg
+1998-06-10 12:00:11  INFO      Dry run complete. Would wipe destination and restore 142 item(s), 3 attachment(s). No changes made.
 ```
 
 ## Step 6 — First live run
