@@ -1,0 +1,4 @@
+# Terms specific to this repo. One extended-regex per line.
+# A credential-sync tool must never publish a vault URL, org id or key material.
+BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY
+https?://(vault|bw|bitwarden)\.[a-z0-9.-]+

@@ -1,0 +1,6 @@
+# Normalise line endings to LF in the repo, checked out as-is on all platforms
+* text=auto eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+.githooks/* text eol=lf

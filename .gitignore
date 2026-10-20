@@ -1,0 +1,35 @@
+# Environment — never commit secrets
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Runtime / temp
+tmp/
+*.gpg.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Private vocabulary for scripts/check_privacy.sh -- local only, never committed.
+/.privacy-denylist.private

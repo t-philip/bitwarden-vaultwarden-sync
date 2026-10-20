@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/t-philip/bitwarden-vaultwarden-sync/security/advisories/new
+    about: Do NOT open a public issue for a vulnerability in a credential-handling tool.
+  - name: Other projects
+    url: https://github.com/t-philip
+    about: Browse the rest of the projects.

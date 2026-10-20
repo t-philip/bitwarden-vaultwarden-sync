@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Blocks a push whose added lines describe a specific real installation.
+# See docs/PRIVACY.md.
+#
+# This lives in a tracked directory rather than .git/hooks precisely because
+# .git/ is never cloned: a hook kept there exists only on the machine that
+# created it, so a fresh clone silently loses the one check that actually
+# prevents a leak (CI can only report one after the fact).
+#
+# Activate once per clone:   git config core.hooksPath .githooks
+#
+# Bypassable with `git push --no-verify`, which is why
+# .github/workflows/check-privacy.yml runs the same script server-side.
+exec bash "$(git rev-parse --show-toplevel)/scripts/check_privacy.sh" --push

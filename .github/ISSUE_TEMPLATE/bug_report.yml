@@ -1,0 +1,75 @@
+name: Bug report
+description: The sync isn't working as documented
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ Read this before you paste anything
+
+        **This issue will be public and permanently visible.** This tool handles
+        password-vault credentials, so please be careful what you copy in:
+
+        - **Never** paste your `.env` file, API keys, client secrets, or your
+          `BW_PASSWORD` / master password.
+        - **Never** paste raw `bw` CLI output or vault exports — those contain your
+          actual credentials.
+        - **Redact** server URLs and email addresses if you'd rather not have them
+          indexed. `https://vault.example.com` and `user@example.com` are fine
+          substitutes.
+
+        Log excerpts are welcome — just check them for tokens first. If a log line
+        contains a secret, replace it with `[REDACTED]` rather than leaving it out
+        entirely, so the shape of the output is still clear.
+
+        **Found a security vulnerability?** Don't open an issue at all — see
+        [SECURITY.md](../blob/main/SECURITY.md) for the private reporting channel.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what did you expect?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Where does it fail?
+      options:
+        - Authenticating against Bitwarden.com
+        - Exporting from Bitwarden.com
+        - Downloading attachments
+        - Importing into Vaultwarden
+        - Encrypted backup step
+        - Telegram notification
+        - Somewhere else / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Secrets removed, please — see the warning above.
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Python version, `bw --version`, and your Vaultwarden version.
+      placeholder: Python 3.13, bw 2024.x.x, Vaultwarden 1.32.x
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirm
+      options:
+        - label: I have not included any password, token, API key, or vault content in this issue.
+          required: true
