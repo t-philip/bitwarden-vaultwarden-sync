@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Structural half of the public-repo privacy rule (see docs/PRIVACY.md).
+# privacy-check 1.0.0 -- the canonical copy lives in the `privacy-check/` folder of the scripts repo;
+# every other repo carries a copy of it (see privacy-check/README.md), kept in step by sync.sh.
 #
 # WHAT THIS IS FOR
 # This repo documents its own design in comments, and the evidence behind those
-# decisions comes from measured data. That is what makes the comments worth
+# decisions comes from real-world data. That is what makes the comments worth
 # reading -- and it is also how details of a particular installation can end up
 # in a public repo.
 #
@@ -11,7 +13,7 @@
 # This is NOT a keyword scanner pretending to be complete. A denylist only ever
 # encodes what someone already thought of, and the leaks that matter are
 # phrases nobody would have listed in advance (a verbatim free-text note, a
-# description of the people in a building).
+# description of who was where).
 # Do not read a pass from this script as "safe to publish". It is the cheap
 # half. The other half is a semantic read of the diff by someone -- or
 # something -- with no memory of writing it, answering one question: could
@@ -31,26 +33,53 @@
 #   scripts/check_privacy.sh --staged     # added lines, staged only
 #   scripts/check_privacy.sh --all        # whole tree (audit; noisy by design)
 #
-# On Windows, run this under Git Bash -- the same bash git itself uses for
-# hooks. PowerShell resolves `bash` to WSL (C:\WINDOWS\system32\bash.exe),
-# which sees the repo through /mnt/c with different line-ending settings, so
-# every file looks modified and the diff balloons to the entire tree. The
-# check then reports failures on code nobody touched. The pre-push hook is
-# unaffected: git runs it with its own bash.
+# On Windows, run this under Git Bash, not WSL's bash: WSL sees the repo with different
+# line endings, so every file looks modified and the check reports failures on code
+# nobody touched. The pre-push hook is unaffected: git runs it with its own bash.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 MODE="${1:---push}"
 fail=0
+VERSION="1.0.0"
+
+# Two years describe the author's own data, so they are settings, not constants. A tracked, optional
+# file `.privacy-config` in the repo root may set them, one KEY=VALUE per line:
+#   fiction_before=2002   test data may use only years BEFORE this one (the "fiction window")
+#   real_data_from=2020   the first year any real data source of yours covers; a bare date from this
+#                         year on, sitting in prose, reads as a dated observation
+# Choose fiction_before earlier than every real data source you have: then a date inside the window
+# provably records nothing. Only a four-digit year from 1900 to 2099 is accepted; anything else keeps the
+# default.
+FICTION_BEFORE=2002
+REAL_DATA_FROM=2020
+if [ -f .privacy-config ]; then
+    while IFS= read -r cfg_line || [ -n "$cfg_line" ]; do
+        cfg_line="${cfg_line%$'\r'}"
+        case "$cfg_line" in
+            fiction_before=19[0-9][0-9]|fiction_before=20[0-9][0-9]) FICTION_BEFORE="${cfg_line#*=}" ;;
+            real_data_from=19[0-9][0-9]|real_data_from=20[0-9][0-9]) REAL_DATA_FROM="${cfg_line#*=}" ;;
+        esac
+    done < .privacy-config
+fi
+# Alternations of years, generated from the two settings (to 2099).
+FICTION_OUTSIDE=$(seq -s"|" "$FICTION_BEFORE" 2099)
+REAL_YEARS=$(seq -s"|" "$REAL_DATA_FROM" 2099)
 
 # This file necessarily contains every pattern it searches for, so it would
 # always flag itself. Reviewed as code, not scanned as prose.
 SELF_EXCLUDE=':(exclude)scripts/check_privacy.sh'
+SELF_EXCLUDE2=':(exclude)privacy-check/check_privacy.sh'  # the canonical copy's own location
+SELF_EXCLUDE3=':(exclude)privacy-check/test.sh'  # its test cases are deliberate bad examples of every rule
+# LICENSE is the unmodified upstream AGPL text (its "November 2007" and quoted defined terms are
+# not author-written content); it is excluded from the scan like this script itself.
 
-case "$MODE" in
-    --all)    ADDED=$(git ls-files -- '*.py' '*.md' '*.js' '*.html' '*.yml' '*.json' '*.sh' '*.css' \
+compute_added() {  # compute_added [extra pathspec excludes...] -> prints added lines
+    local EXTRA=("$@") ADDED
+    case "$MODE" in
+    --all)    ADDED=$(git ls-files -- '*.py' '*.md' '*.js' '*.html' '*.yml' '*.json' '*.sh' '*.css' "${EXTRA[@]+"${EXTRA[@]}"}" \
                       | grep -v '\.min\.' | xargs -r grep -Hn '' 2>/dev/null) ;;
-    --staged) ADDED=$(git diff --cached -U0 -- . "$SELF_EXCLUDE" | grep '^+' | grep -v '^+++') ;;
+    --staged) ADDED=$(git diff --cached -U0 -- . "$SELF_EXCLUDE" "$SELF_EXCLUDE2" "$SELF_EXCLUDE3" ':(exclude)LICENSE' "${EXTRA[@]+"${EXTRA[@]}"}" | grep '^+' | grep -v '^+++') ;;
     *)        # PRIVACY_BASE lets CI name the range it wants checked; locally
               # we compare against the published branch plus the working tree.
               if [ -n "${PRIVACY_BASE:-}" ]; then
@@ -59,10 +88,17 @@ case "$MODE" in
                   git fetch -q origin 2>/dev/null || true
                   base=$(git rev-parse --verify -q origin/main || git rev-parse HEAD)
               fi
-              ADDED=$(git diff -U0 "$base"...HEAD -- . "$SELF_EXCLUDE" 2>/dev/null | grep '^+' | grep -v '^+++'
-                      git diff -U0 -- . "$SELF_EXCLUDE" | grep '^+' | grep -v '^+++'
-                      git diff --cached -U0 -- . "$SELF_EXCLUDE" | grep '^+' | grep -v '^+++') ;;
-esac
+              ADDED=$(git diff -U0 "$base"...HEAD -- . "$SELF_EXCLUDE" "$SELF_EXCLUDE2" "$SELF_EXCLUDE3" ':(exclude)LICENSE' "${EXTRA[@]+"${EXTRA[@]}"}" 2>/dev/null | grep '^+' | grep -v '^+++'
+                      git diff -U0 -- . "$SELF_EXCLUDE" "$SELF_EXCLUDE2" "$SELF_EXCLUDE3" ':(exclude)LICENSE' "${EXTRA[@]+"${EXTRA[@]}"}" | grep '^+' | grep -v '^+++'
+                      git diff --cached -U0 -- . "$SELF_EXCLUDE" "$SELF_EXCLUDE2" "$SELF_EXCLUDE3" ':(exclude)LICENSE' "${EXTRA[@]+"${EXTRA[@]}"}" | grep '^+' | grep -v '^+++') ;;
+    esac
+    printf '%s\n' "$ADDED"
+}
+ADDED=$(compute_added)
+# Front-end code (scripts, templates, styles) is full of user-interface labels and
+# captions that are not data entries. The free-text and quoted-phrase rules
+# below run on the added lines minus those files; every other rule sees all of it.
+ADDED_DATA=$(compute_added ':(exclude)*.js' ':(exclude)*.html' ':(exclude)*.css')
 
 report() {  # report <severity> <label> <pattern> [inverse-filter]
     local sev="$1" label="$2" pat="$3" drop="${4:-__nomatch__}"
@@ -75,7 +111,7 @@ report() {  # report <severity> <label> <pattern> [inverse-filter]
     return 0
 }
 
-echo "privacy check — $MODE"
+echo "privacy check $VERSION — $MODE (fiction window before $FICTION_BEFORE)"
 
 # --- Identity and infrastructure -------------------------------------------
 # A denylist, and treated as one: cheap, exact, zero false positives, and
@@ -140,8 +176,8 @@ report FAIL "people, relationships, places" \
 # --- Network and contact ----------------------------------------------------
 # RFC 5737 documentation ranges (192.0.2/24, 198.51.100/24, 203.0.113/24) and
 # loopback are the correct things to publish, so they are excluded, as is
-# 192.168.4.1, the fixed default address of common captive-portal WiFi setup
-# tooling, which says nothing about anyone's network.
+# a fixed default address commonly used by device setup tooling, which says
+# nothing about anyone's network.
 report FAIL "real IP addresses" \
     '\b(10|127|172|192)\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\b' \
     '192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|127\.0\.0\.1|0\.0\.0\.0|192\.168\.4\.1\b'
@@ -162,18 +198,18 @@ report FAIL "email addresses" \
 # ("YYYY-MM-DD"). So: flag bare dates, leave quoted ones to the advisory
 # rule below.
 report FAIL "bare date in prose (a dated observation, not behaviour)" \
-    '(^|[^"'"'"'0-9-])20(2[3-9]|[3-9][0-9])-[0-9]{2}-[0-9]{2}' \
+    "(^|[^\"'0-9-])($REAL_YEARS)-[0-9]{2}-[0-9]{2}" \
     '__nomatch__'
 
 report FAIL "month-year in prose" \
     '\b(January|February|March|April|May|June|July|August|September|October|November|December) 20[0-9]{2}\b'
 
-# A duration in days attached to a household event. Requires a household word
+# A duration in days attached to a personal event. Requires an event word
 # on the same line, so "30-day retention" passes untouched.
-report FAIL "duration attached to a household event" \
+report FAIL "duration attached to a personal event" \
     '\b[0-9]+-day\b.*(absence|trip|visit|stay|span|away|empty|guest|occupan)|(absence|trip|visit|stay|span|away|empty|guest|occupan).*\b[0-9]+-day\b'
 
-# A bare year on a line about absence -- catches a month and its year split
+# A bare year on a line about a stay or absence -- catches a month and its year split
 # across two wrapped comment lines.
 report FAIL "year on a line describing an absence" \
     '\b20[0-9]{2}\b.*(absence|nobody there|empty house|house was empty)|(absence|nobody there|empty house|house was empty).*\b20[0-9]{2}\b' \
@@ -184,12 +220,21 @@ report FAIL "year on a line describing an absence" \
 #
 # Case-SENSITIVE on purpose, and therefore not run through report(), which
 # forces -i: with -i this matches ordinary phrases.
-hits=$(printf '%s\n' "$ADDED" | grep -nE '"[A-Z][a-z]+ [a-z]+( [A-Z]{2})?"' 2>/dev/null \
+# A line may opt out of this rule and the free-text rule with a trailing "# ui-text" comment: for plain interface
+# labels only. Every use is counted and printed below, so an exemption cannot pass unseen.
+UI_MARK='[[:space:]]# ui-text[[:space:]]*$'   # anchored: the text inside a string does not count
+exempt=$(printf '%s\n' "$ADDED_DATA" | grep -cE -e "$UI_MARK" || true)
+hits=$(printf '%s\n' "$ADDED_DATA" | grep -vE -e "$UI_MARK" | grep -nE '"[A-Z][a-z]+ [a-z]+( [A-Z]{2})?"' 2>/dev/null \
        | grep -viE 'e\.g\.|for example|SELECT|INSERT|UPDATE|CREATE|ALTER|PRAGMA|Content-Type|User-Agent' || true)
 if [ -n "$hits" ]; then
     printf '\n  [FAIL] quoted proper-noun phrase (verbatim log note?)\n'
     printf '%s\n' "$hits" | sed 's/^/      /' | head -20
     fail=1
+fi
+if [ "${exempt:-0}" -gt 0 ]; then
+    printf '\n  note: %s added line(s) carry "# ui-text" and skipped the quoted-phrase and free-text rules;\n' "$exempt"
+    printf '        they must be plain interface labels, never text copied from real data. Read them:\n'
+    printf '%s\n' "$ADDED_DATA" | grep -E -e "$UI_MARK" | sed 's/^+[[:space:]]*/        | /' | head -60
 fi
 
 # --- Per-repo additions -----------------------------------------------------
@@ -208,8 +253,8 @@ if [ -f "$DENYLIST_FILE" ]; then
 fi
 
 # --- The fiction window -----------------------------------------------------
-# Test data uses a year before 2002 and nothing else. Real data sources start
-# well after 2001, so a date inside the window provably is not a record of
+# Test data uses a year before `fiction_before` (2002 by default) and nothing else. Real data
+# sources start well after that year, so a date inside the window provably is not a record of
 # anything, and a date outside it in quoted data is a hard signal rather than
 # a guess.
 #
@@ -224,21 +269,23 @@ fi
 # Relative dates are untouched and should stay relative: a fixture built from
 # `_START + timedelta(...)`, or logic that works from "today", carries no
 # calendar fact to leak and pinning it would break the test.
-report FAIL "absolute date at or after 2002 (outside the fiction window)" \
-    '"(200[2-9]|20[1-9][0-9])-[0-9]{2}-[0-9]{2}'
+report FAIL "absolute date at or after $FICTION_BEFORE (outside the fiction window)" \
+    "\"($FICTION_OUTSIDE)-[0-9]{2}-[0-9]{2}"
 
 # Free-text fields are where a verbatim note from a real database ends up --
-# an occupancy note, a device label, a description. Default them to a
+# a trip note, a device label, a description. Default them to a
 # placeholder rather than inventing something that reads like a real entry.
+ADDED_ALL=$ADDED; ADDED=$ADDED_DATA
 report FAIL "free-text field with non-placeholder content" \
     '(notes|note|description|comment|label|title)\s*[=:]\s*"[^"]{4,}"' \
-    '"Test Data|placeholder|example|e\.g\.|lorem'
+    '"Test Data|placeholder|example|e\.g\.|lorem|[[:space:]]# ui-text[[:space:]]*$'
+ADDED=$ADDED_ALL
 
 # --- Verdict ----------------------------------------------------------------
 echo
 if [ "$fail" -ne 0 ]; then
     cat <<'EOF'
-FAIL — see docs/PRIVACY.md.
+FAIL — see docs/PRIVACY.md (or privacy-check/README.md).
 
 Fix by generalising, not by deleting: say what the code does and why, in
 terms a reader with no knowledge of the author's home could have written.
